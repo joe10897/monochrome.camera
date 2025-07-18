@@ -127,7 +127,7 @@
 
     <div class="controls">
         <button id="flip-camera">切換鏡頭</button>
-        <button id="take-photo">📸</button>
+        <button id="take-photo"></button>
 
         <label for="color-palette">選擇補光顏色：</label>
         <div id="color-palette" role="button" aria-label="選擇補光顏色"></div>
@@ -182,7 +182,7 @@
 
         // 切換鏡頭
         flipCameraButton.addEventListener('click', () => {
-            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
             startCamera(currentFacingMode);
         });
 
