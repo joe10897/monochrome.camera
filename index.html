@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale: 1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>補光燈功能相機</title>
     <style>
         body {
@@ -24,22 +24,22 @@
             width: 100vw;
             height: 100vh;
             background-color: rgba(255, 255, 255, 0);
-            /* 預設透明 */
             pointer-events: none;
             z-index: 1;
             transition: background-color 0.2s;
         }
 
-        #camera-preview {
-            width: 100%;
-            max-width: 600px;
-            aspect-ratio: 3/2;
-            background-color: #000;
+        #camera-container {
+            width: 300px;
+            /* 縮小相機預覽 */
+            height: 400px;
+            position: relative;
+            z-index: 2;
             border: 5px solid #ccc;
             border-radius: 10px;
             overflow: hidden;
-            position: relative;
-            z-index: 2;
+            margin: 20px auto;
+            /* 置中相機預覽 */
         }
 
         #camera {
@@ -57,19 +57,35 @@
         }
 
         #take-photo {
-            padding: 10px 20px;
-            font-size: 16px;
-            margin: 10px 0;
-            border: none;
-            border-radius: 5px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
             background-color: #333;
             color: white;
+            border: none;
             cursor: pointer;
+            font-size: 20px;
+            /* 調整圖示大小 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px 0;
+        }
+
+        #flip-camera {
+            padding: 5px 10px;
+            font-size: 14px;
+            background-color: #666;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 10px;
         }
 
         #color-palette {
-            width: 100px;
-            height: 100px;
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
             border: 2px solid #ccc;
             background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
@@ -78,8 +94,8 @@
         }
 
         #selected-color {
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             border: 2px solid #ccc;
             border-radius: 50%;
             margin-top: 10px;
@@ -98,36 +114,20 @@
         }
 
         input[type="range"] {
-            width: 200px;
-        }
-
-        @media (max-width: 480px) {
-            #camera-preview {
-                max-width: 100%;
-                border: none;
-                border-radius: 0;
-            }
-
-            input[type="range"] {
-                width: 150px;
-            }
-
-            #color-palette {
-                width: 80px;
-                height: 80px;
-            }
+            width: 150px;
         }
     </style>
 </head>
 
 <body>
     <div id="lighting-area"></div>
-    <div id="camera-preview">
+    <div id="camera-container">
         <video id="camera" autoplay playsinline></video>
     </div>
 
     <div class="controls">
-        <button id="take-photo">📸 拍照</button>
+        <button id="flip-camera">切換鏡頭</button>
+        <button id="take-photo">📸</button>
 
         <label for="color-palette">選擇補光顏色：</label>
         <div id="color-palette" role="button" aria-label="選擇補光顏色"></div>
@@ -148,6 +148,7 @@
         const canvas = document.getElementById('canvas');
         const photoResult = document.getElementById('photo-result');
         const takePhotoBtn = document.getElementById('take-photo');
+        const flipCameraButton = document.getElementById('flip-camera');
         const lightingArea = document.getElementById('lighting-area');
         const colorPalette = document.getElementById('color-palette');
         const colorInput = document.getElementById('color');
@@ -155,17 +156,37 @@
         const intensityRange = document.getElementById('intensity-range');
         const flashToggle = document.getElementById('flash-toggle');
 
+        let currentFacingMode = 'environment'; // 預設後置鏡頭
+
         // 啟用相機
-        navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: 'environment'
-            }
-        })
-            .then(stream => video.srcObject = stream)
-            .catch(error => {
-                console.error('無法開啟相機：', error);
-                alert('無法開啟相機：' + error.message);
-            });
+        function startCamera(facingMode) {
+            const constraints = {
+                video: {
+                    facingMode: facingMode
+                },
+                audio: false
+            };
+
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        video.play();
+                    };
+                })
+                .catch(error => {
+                    console.error('無法開啟相機：', error);
+                    alert('無法開啟相機：' + error.message);
+                });
+        }
+
+        // 切換鏡頭
+        flipCameraButton.addEventListener('click', () => {
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            startCamera(currentFacingMode);
+        });
+
+        startCamera(currentFacingMode); // 啟動預設鏡頭
 
         // 補光色選取
         colorPalette.addEventListener('click', function (event) {
