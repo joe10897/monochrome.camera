@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale: 1.0" />
+    <title>補光燈功能相機</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #lighting-area {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(255, 255, 255, 0);
+            /* 預設透明 */
+            pointer-events: none;
+            z-index: 1;
+            transition: background-color 0.2s;
+        }
+
+        #camera-preview {
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 3/2;
+            background-color: #000;
+            border: 5px solid #ccc;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            z-index: 2;
+        }
+
+        #camera {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .controls {
+            z-index: 3;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #take-photo {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 5px;
+            background-color: #333;
+            color: white;
+            cursor: pointer;
+        }
+
+        #color-palette {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 2px solid #ccc;
+            background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        #selected-color {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #ccc;
+            border-radius: 50%;
+            margin-top: 10px;
+        }
+
+        label {
+            margin-top: 5px;
+        }
+
+        #photo-result {
+            margin-top: 10px;
+            max-width: 90%;
+            border: 2px solid #999;
+            border-radius: 10px;
+            display: none;
+        }
+
+        input[type="range"] {
+            width: 200px;
+        }
+
+        @media (max-width: 480px) {
+            #camera-preview {
+                max-width: 100%;
+                border: none;
+                border-radius: 0;
+            }
+
+            input[type="range"] {
+                width: 150px;
+            }
+
+            #color-palette {
+                width: 80px;
+                height: 80px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="lighting-area"></div>
+    <div id="camera-preview">
+        <video id="camera" autoplay playsinline></video>
+    </div>
+
+    <div class="controls">
+        <button id="take-photo">📸 拍照</button>
+
+        <label for="color-palette">選擇補光顏色：</label>
+        <div id="color-palette" role="button" aria-label="選擇補光顏色"></div>
+        <input type="hidden" id="color" value="#ffffff">
+        <div id="selected-color" style="background-color: #ffffff;"></div>
+
+        <label for="intensity-range">補光強度：</label>
+        <input type="range" id="intensity-range" min="0" max="1" step="0.01" value="0.5" aria-label="補光強度">
+
+        <label><input type="checkbox" id="flash-toggle"> 開啟閃光模式</label>
+    </div>
+
+    <canvas id="canvas" style="display:none;"></canvas>
+    <img id="photo-result" alt="拍照結果">
+
+    <script>
+        const video = document.getElementById('camera');
+        const canvas = document.getElementById('canvas');
+        const photoResult = document.getElementById('photo-result');
+        const takePhotoBtn = document.getElementById('take-photo');
+        const lightingArea = document.getElementById('lighting-area');
+        const colorPalette = document.getElementById('color-palette');
+        const colorInput = document.getElementById('color');
+        const selectedColorDisplay = document.getElementById('selected-color');
+        const intensityRange = document.getElementById('intensity-range');
+        const flashToggle = document.getElementById('flash-toggle');
+
+        // 啟用相機
+        navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'environment'
+            }
+        })
+            .then(stream => video.srcObject = stream)
+            .catch(error => {
+                console.error('無法開啟相機：', error);
+                alert('無法開啟相機：' + error.message);
+            });
+
+        // 補光色選取
+        colorPalette.addEventListener('click', function (event) {
+            const rect = colorPalette.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const radius = rect.width / 2;
+            const angle = Math.atan2(y - radius, x - radius);
+            const hue = ((angle * 180 / Math.PI) + 360) % 360;
+            const saturation = Math.min(1, Math.sqrt((x - radius) ** 2 + (y - radius) ** 2) / radius);
+            const color = `hsl(${hue}, ${saturation * 100}%, 50%)`;
+            colorInput.value = color;
+            updateLighting();
+        });
+
+        intensityRange.addEventListener('input', updateLighting);
+
+        function updateLighting() {
+            const color = colorInput.value;
+            const alpha = parseFloat(intensityRange.value);
+            lightingArea.style.backgroundColor = convertToRGBA(color, alpha);
+            selectedColorDisplay.style.backgroundColor = color;
+        }
+
+        function convertToRGBA(hsl, alpha) {
+            try {
+                const div = document.createElement('div');
+                div.style.color = hsl;
+                document.body.appendChild(div);
+                const rgb = getComputedStyle(div).color;
+                document.body.removeChild(div);
+                return rgb.replace('rgb(', 'rgba(').replace(')', `, ${alpha})`);
+            } catch (error) {
+                console.error('顏色轉換錯誤：', error);
+                return `rgba(255, 255, 255, ${alpha})`; // 回退到白色
+            }
+        }
+
+        // 拍照 + 自動下載
+        takePhotoBtn.addEventListener('click', () => {
+            if (flashToggle.checked) {
+                simulateFlash(() => capturePhoto());
+            } else {
+                capturePhoto();
+            }
+        });
+
+        function simulateFlash(callback) {
+            const originalColor = lightingArea.style.backgroundColor;
+            lightingArea.style.backgroundColor = '#fff';
+            setTimeout(() => {
+                lightingArea.style.backgroundColor = originalColor;
+                callback();
+            }, 100);
+        }
+
+        function capturePhoto() {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/png');
+            photoResult.src = dataUrl;
+            photoResult.style.display = 'block';
+
+            // 自動下載
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `photo-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+
+</html>
